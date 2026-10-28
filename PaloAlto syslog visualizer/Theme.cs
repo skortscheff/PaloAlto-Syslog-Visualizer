@@ -133,16 +133,7 @@ namespace PaloAlto_syslog_visualizer
                         textBox.BorderStyle = BorderStyle.FixedSingle;
                         break;
                     case CheckBox checkBox:
-                        // shown as a small toggle button, filled with the accent color when checked
-                        checkBox.Appearance = Appearance.Button;
-                        checkBox.FlatStyle = FlatStyle.Flat;
-                        checkBox.TextAlign = ContentAlignment.MiddleCenter;
-                        checkBox.FlatAppearance.BorderColor = theme.Border;
-                        checkBox.FlatAppearance.CheckedBackColor = theme.Accent;
-                        checkBox.FlatAppearance.MouseOverBackColor = theme.ButtonHover;
-                        checkBox.BackColor = theme.Input;
-                        checkBox.ForeColor = checkBox.Checked ? theme.AccentText : theme.Text;
-                        checkBox.Cursor = Cursors.Hand;
+                        ApplyToCheckBox(checkBox, theme);
                         break;
                     case Label label:
                         label.ForeColor = theme.TextMuted;
@@ -162,6 +153,20 @@ namespace PaloAlto_syslog_visualizer
                 }
                 ApplyToChildren(control, theme);
             }
+        }
+
+        // shown as a small toggle button, filled with the accent color when checked
+        public static void ApplyToCheckBox(CheckBox checkBox, Theme theme)
+        {
+            checkBox.Appearance = Appearance.Button;
+            checkBox.FlatStyle = FlatStyle.Flat;
+            checkBox.TextAlign = ContentAlignment.MiddleCenter;
+            checkBox.FlatAppearance.BorderColor = theme.Border;
+            checkBox.FlatAppearance.CheckedBackColor = theme.Accent;
+            checkBox.FlatAppearance.MouseOverBackColor = theme.ButtonHover;
+            checkBox.BackColor = theme.Input;
+            checkBox.ForeColor = checkBox.Checked ? theme.AccentText : theme.Text;
+            checkBox.Cursor = Cursors.Hand;
         }
 
         static void ApplyToButton(Button button, Theme theme, bool primary)
@@ -195,12 +200,16 @@ namespace PaloAlto_syslog_visualizer
             grid.DefaultCellStyle.SelectionForeColor = theme.SelectionText;
             grid.AlternatingRowsDefaultCellStyle.BackColor = theme.GridAltRow;
 
-            // dark scroll bars, Windows ignores the theme name when it doesn't support it
+            ApplyToScrollBars(grid, theme);
+            grid.Invalidate();
+        }
+
+        // dark scroll bars, Windows ignores the theme name when it doesn't support it
+        public static void ApplyToScrollBars(DataGridView grid, Theme theme)
+        {
             foreach (Control scrollBar in grid.Controls)
                 if (scrollBar is ScrollBar && scrollBar.IsHandleCreated)
                     SetWindowTheme(scrollBar.Handle, theme.IsDark ? "DarkMode_Explorer" : "Explorer", null);
-
-            grid.Invalidate();
         }
 
         static void SetDarkTitleBar(Form form, bool dark)

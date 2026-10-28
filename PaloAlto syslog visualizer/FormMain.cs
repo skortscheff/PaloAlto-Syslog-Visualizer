@@ -12,15 +12,15 @@ namespace PaloAlto_syslog_visualizer
 {
     public partial class FormMain : Form
     {
-        static bool captureStatus = true;
-        bool captureOn = true;
         Theme theme;
         Font actionFont;
+        // each filter text box with its exclude toggle
+        readonly (CheckBox checkBox, TextBox textBox)[] filters;
 
         public FormMain()
         {
             // saved choice of the toggle, otherwise follow the Windows app mode
-            string savedTheme = Properties.Settings.Default.Theme;
+            string savedTheme = LoadSavedTheme();
             if (savedTheme == "Dark")
                 theme = Theme.Dark;
             else if (savedTheme == "Light")
@@ -30,13 +30,18 @@ namespace PaloAlto_syslog_visualizer
 
             InitializeComponent();
 
+            filters = new[] {
+                (checkBoxSouceAddress, textBoxSouceAddress), (checkBoxDestinationAddress, textBoxDestinationAddress),
+                (checkBoxDestinationPort, textBoxDestinationPort), (checkBoxAction, textBoxAction),
+                (checkBoxInboundInterface, textBoxInboundInterface), (checkBoxRuleName, textBoxRuleName) };
+
             // smoother scrolling and repaint of the grid
             typeof(DataGridView).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
                 .SetValue(dataGridViewLogs, true);
             dataGridViewLogs.CellFormatting += dataGridViewLogs_CellFormatting;
 
             ToolTip toolTip = new ToolTip();
-            foreach (CheckBox checkBox in new[] { checkBoxSouceAddress, checkBoxDestinationAddress, checkBoxDestinationPort, checkBoxAction, checkBoxInboundInterface, checkBoxRuleName })
+            foreach ((CheckBox checkBox, TextBox _) in filters)
                 toolTip.SetToolTip(checkBox, "Exclude the logs that match this filter");
             toolTip.SetToolTip(buttonSearch, "Show the last 50 logs that match the filters (Enter)");
             toolTip.SetToolTip(buttonClean, "Empty the buffer");
@@ -50,14 +55,11 @@ namespace PaloAlto_syslog_visualizer
                 WindowState = FormWindowState.Maximized;
 
             // square exclude toggles next to their text box, sized after the DPI scaling
-            foreach ((CheckBox checkBox, TextBox textBox) in new[] {
-                (checkBoxSouceAddress, textBoxSouceAddress), (checkBoxDestinationAddress, textBoxDestinationAddress),
-                (checkBoxDestinationPort, textBoxDestinationPort), (checkBoxAction, textBoxAction),
-                (checkBoxInboundInterface, textBoxInboundInterface), (checkBoxRuleName, textBoxRuleName) })
+            foreach ((CheckBox checkBox, TextBox textBox) in filters)
             {
                 checkBox.AutoSize = false;
                 checkBox.Bounds = new Rectangle(textBox.Right + 2, textBox.Top, textBox.Height, textBox.Height);
-                checkBox.CheckedChanged += (s, ev) => ApplyTheme();
+                checkBox.CheckedChanged += (s, ev) => ThemeManager.ApplyToCheckBox(checkBox, theme);
             }
 
             ApplyTheme();
@@ -68,15 +70,47 @@ namespace PaloAlto_syslog_visualizer
         private void ApplyTheme()
         {
             ThemeManager.Apply(this, theme);
-            SetCaptureStatus(captureOn);
+            SetCaptureStatus(Program.IsCapturing);
             buttonTheme.Text = theme.IsDark ? "Light mode" : "Dark mode";
+        }
+
+        // a corrupt user.config (e.g. truncated by a power loss) must not stop the app from starting
+        private static string LoadSavedTheme()
+        {
+            try
+            {
+                return Properties.Settings.Default.Theme;
+            }
+            catch (System.Configuration.ConfigurationErrorsException ex)
+            {
+                // delete it so the next save writes a new one
+                string file = (ex.InnerException as System.Configuration.ConfigurationErrorsException)?.Filename ?? ex.Filename;
+                try
+                {
+                    if (!string.IsNullOrEmpty(file))
+                        System.IO.File.Delete(file);
+                    Properties.Settings.Default.Reload();
+                }
+                catch (Exception)
+                {
+                    ;
+                }
+                return "";
+            }
         }
 
         private void buttonTheme_Click(object sender, EventArgs e)
         {
             theme = theme.IsDark ? Theme.Light : Theme.Dark;
-            Properties.Settings.Default.Theme = theme.IsDark ? "Dark" : "Light";
-            Properties.Settings.Default.Save();
+            try
+            {
+                Properties.Settings.Default.Theme = theme.IsDark ? "Dark" : "Light";
+                Properties.Settings.Default.Save();
+            }
+            catch (System.Configuration.ConfigurationErrorsException)
+            {
+                ; // the theme still changes, it is just not remembered
+            }
             ApplyTheme();
         }
 
@@ -198,39 +232,15 @@ namespace PaloAlto_syslog_visualizer
                 if (searchByParameter[enumIndex])
                     searchIsOn = true;
 
-            int itemLeftToPrint = 50;
-            int lastItemWrited = (int)Program.databaseIndexLastItem;
-            if (lastItemWrited != -1)
+            // the parse thread waits while the buffer is scanned, new logs stay in its queue
+            lock (Program.databaseLock)
             {
-                bool[] checkBoxCheckedSearchParameter = getCheckBoxCheckedSearchParameter();
-                for (int indexDB = lastItemWrited; indexDB >= 0 && itemLeftToPrint > 0; indexDB--)
+                int itemLeftToPrint = 50;
+                int lastItemWrited = (int)Program.databaseIndexLastItem;
+                if (lastItemWrited != -1)
                 {
-                    if (searchIsOn)
-                    {
-                        int[] indexOfIndexSearchParameter = getIndexOfIndexSearchParameter(indexDB);
-
-                        bool matchTheFilter = true;
-                        foreach (int enumIndex in Enum.GetValues(typeof(searchParameter)))
-                            if (matchTheFilter) //if it's false I don't care anymore
-                                matchTheFilter = !searchByParameter[enumIndex] || (checkBoxCheckedSearchParameter[enumIndex] ? indexOfIndexSearchParameter[enumIndex] == -1 : indexOfIndexSearchParameter[enumIndex] != -1);
-
-                        if(matchTheFilter)
-                        {
-                            dt.Rows.Add(Program.database[indexDB].getAll);
-                            itemLeftToPrint--;
-                        }
-                    }
-                    else
-                    {
-                        dt.Rows.Add(Program.database[indexDB].getAll);
-                        itemLeftToPrint--;
-                    }
-                }
-
-                if (itemLeftToPrint > 0 && Program.databaseOverwrite)
-                {
-                    int indexDB = (int)Program.databaseSize - 1;
-                    while (indexDB > lastItemWrited && itemLeftToPrint > 0)
+                    bool[] checkBoxCheckedSearchParameter = getCheckBoxCheckedSearchParameter();
+                    for (int indexDB = lastItemWrited; indexDB >= 0 && itemLeftToPrint > 0; indexDB--)
                     {
                         if (searchIsOn)
                         {
@@ -241,17 +251,45 @@ namespace PaloAlto_syslog_visualizer
                                 if (matchTheFilter) //if it's false I don't care anymore
                                     matchTheFilter = !searchByParameter[enumIndex] || (checkBoxCheckedSearchParameter[enumIndex] ? indexOfIndexSearchParameter[enumIndex] == -1 : indexOfIndexSearchParameter[enumIndex] != -1);
 
-                            if (matchTheFilter)
+                            if(matchTheFilter)
                             {
                                 dt.Rows.Add(Program.database[indexDB].getAll);
                                 itemLeftToPrint--;
                             }
                         }
-                        else {
+                        else
+                        {
                             dt.Rows.Add(Program.database[indexDB].getAll);
                             itemLeftToPrint--;
                         }
-                        indexDB--;
+                    }
+
+                    if (itemLeftToPrint > 0 && Program.databaseOverwrite)
+                    {
+                        int indexDB = (int)Program.databaseSize - 1;
+                        while (indexDB > lastItemWrited && itemLeftToPrint > 0)
+                        {
+                            if (searchIsOn)
+                            {
+                                int[] indexOfIndexSearchParameter = getIndexOfIndexSearchParameter(indexDB);
+
+                                bool matchTheFilter = true;
+                                foreach (int enumIndex in Enum.GetValues(typeof(searchParameter)))
+                                    if (matchTheFilter) //if it's false I don't care anymore
+                                        matchTheFilter = !searchByParameter[enumIndex] || (checkBoxCheckedSearchParameter[enumIndex] ? indexOfIndexSearchParameter[enumIndex] == -1 : indexOfIndexSearchParameter[enumIndex] != -1);
+
+                                if (matchTheFilter)
+                                {
+                                    dt.Rows.Add(Program.database[indexDB].getAll);
+                                    itemLeftToPrint--;
+                                }
+                            }
+                            else {
+                                dt.Rows.Add(Program.database[indexDB].getAll);
+                                itemLeftToPrint--;
+                            }
+                            indexDB--;
+                        }
                     }
                 }
             }
@@ -262,35 +300,22 @@ namespace PaloAlto_syslog_visualizer
             foreach (DataGridViewColumn column in dataGridViewLogs.Columns)
                 column.SortMode = DataGridViewColumnSortMode.NotSortable;
 
-            // remove the empty one
-            dataGridViewLogs.AllowUserToAddRows = false;
-
             // resize the columns
             foreach (DataGridViewColumn column in dataGridViewLogs.Columns)
                 column.AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
 
             // the scroll bars are created with the first data, theme them too
-            ApplyTheme();
+            ThemeManager.ApplyToScrollBars(dataGridViewLogs, theme);
 
         }
 
         private void buttonPauseStartCapture_Click(object sender, EventArgs e)
         {
-            // if it's capturing -> stop it and set the button to restart it later
-            if (captureStatus)
-            {
-                // Stop the syslog capture
+            // the button text follows the capture state through SetCaptureStatus
+            if (Program.IsCapturing)
                 Program.StopCapture();
-                buttonPauseStartCapture.Text = "Start capture";
-            }
-            // if it's not capturing -> start it and set the button to stop it later
             else
-            {
-                // Restart the syslog capture
                 Program.StartCapture();
-                buttonPauseStartCapture.Text = "Stop capture";
-            }
-            captureStatus = !captureStatus;
         }
 
         private void FormMain_FormClosed(object sender, FormClosedEventArgs e)
@@ -301,9 +326,14 @@ namespace PaloAlto_syslog_visualizer
 
         private void buttonClean_Click(object sender, EventArgs e)
         {
+            // empty the buffer and keep the capture as it was, running or stopped
+            bool wasCapturing = Program.IsCapturing;
             Program.StopCapture();
             Program.resetDB();
-            Program.StartCapture();
+            if (wasCapturing)
+                Program.StartCapture();
+            else
+                SetStatusValues(0, 0);
         }
 
     }

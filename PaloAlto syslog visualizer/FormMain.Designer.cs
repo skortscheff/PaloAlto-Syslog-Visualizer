@@ -434,11 +434,11 @@ namespace PaloAlto_syslog_visualizer
         }
         public void SetCaptureStatus(bool capturing)
         {
-            captureOn = capturing;
             if (capturing)
                 this.toolStripStatusSyslog.Text = "● Capture is on";
             else
                 this.toolStripStatusSyslog.Text = "● Capture is off";
+            this.buttonPauseStartCapture.Text = capturing ? "Stop capture" : "Start capture";
             this.toolStripStatusSyslog.ForeColor = capturing ? theme.Allow : theme.TextMuted;
         }
 
