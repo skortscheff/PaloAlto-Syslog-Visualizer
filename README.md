@@ -1,66 +1,95 @@
-# PaloAlto-syslog-visualizer
-Tools to replace the Monitor tab for Palo Alto 410, using syslog log forwardin.
-To use it configure a syslog forwarding for the traffic to the IP of your PC (please check that the firewall allow the traffic if you aren't on the same net of the management interface).
-It use the standard port UDP 514.
+# PaloAlto Syslog Visualizer
 
-It runs as a normal user, administrator rights are not needed. The first time logs arrive from another machine, Windows Firewall may ask to allow the app.
+A lightweight Windows app that receives traffic logs from a Palo Alto Networks firewall over syslog and shows them in a searchable table. It was built as a replacement for the Monitor tab on the PA-410, but it works with any PAN-OS firewall that can forward traffic logs.
 
 ![Dark mode](Screenshot-dark.png)
 
 ![Light mode](Screenshot-light.png)
 
+## Features
 
-The program has a circular buffer of 100000 entry, the search show the last 50 events that match the search filter.
-it is possible to deny the search by turning on the `!` toggle next to the text box. Press Enter to search.
+- Receives traffic logs on **UDP port 514** and keeps the latest **100,000** in memory.
+- **Search** shows the 50 most recent logs that match the filters. You can filter by source address, destination address, destination port, action, inbound interface and rule name.
+- Each filter has a **`!` toggle** that inverts it, so it shows the logs that do *not* match.
+- The **Action** column is color coded: allowed traffic in green, denied, dropped or reset traffic in red.
+- **Light and dark themes**: the app follows the Windows setting by default, and the **Light mode / Dark mode** button switches it and remembers your choice.
+- Handles bursts of more than 50,000 logs per second without dropping any.
+- Uses about 230 MB of RAM with a full buffer, and very little CPU.
+- Runs as a normal user; administrator rights are not needed.
 
-The theme follows the Windows light/dark setting, the **Light mode / Dark mode** button switches it and the choice is remembered.
+## Requirements
 
-It use about 230Mb of ram when the buffer is full and the CPU usage is minimal.
+- Windows 10 or 11
+- [.NET Core 3.1 SDK](https://dotnet.microsoft.com/download/dotnet/3.1) to build. Visual Studio is not needed.
 
 ## Build and run
-Requires the [.NET Core 3.1 SDK](https://dotnet.microsoft.com/download/dotnet/3.1) on Windows, Visual Studio is not needed.
 
 ```
 dotnet build
 dotnet run --project "PaloAlto syslog visualizer"
 ```
 
+The first time logs arrive from another machine, Windows Firewall may ask you to allow the app.
+
+## Configure the firewall
+
+1. **Device > Server Profiles > Syslog**: add a server with the IP address of the PC running the app, transport **UDP**, port **514** and format **BSD**.
+2. **Objects > Log Forwarding**: create a profile that sends the **traffic** log type to that syslog server profile.
+3. **Policies > Security**: on the **Actions** tab of each rule you want to see, select the log forwarding profile.
+4. **Commit** the changes.
+
+If the PC is not on the same network as the firewall's management interface, make sure the syslog traffic is allowed between them.
+
+## Usage
+
+- Fill in any filters and press **Search** (or Enter) to show the latest matching logs. The table does not refresh automatically.
+- **Stop capture** pauses receiving, and **Start capture** resumes it.
+- **Clean** empties the buffer and resets the counters.
+- The status bar shows whether capture is on, how full the buffer is and the total number of logs received.
+
+## Limitations
+
+- Only traffic logs are supported. Other syslog messages are ignored.
+- Not every field of the traffic log is stored. The full field list is in the [Palo Alto traffic log field descriptions](https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/monitoring/use-syslog-for-monitoring/syslog-field-descriptions/traffic-log-fields.html). If something important is missing, please open an issue.
+- Flags are shown as raw values and are not decoded.
+- There is no pagination: only the 50 most recent matching logs are shown.
+- Search is only available on the fields listed above.
+- Windows only, and the app has no icon yet.
+- .NET Core 3.1 is no longer supported by Microsoft. Moving to .NET 8 only requires changing `TargetFramework` in the project file and installing the .NET 8 SDK.
+- Parsing runs on a single thread. That is plenty for one firewall, but the app will not use more than about two CPU cores.
+- The theme is applied at runtime, so the Visual Studio form designer shows the default colors.
+
 ## Changes in this fork
-This fork of [M9k/PaloAlto-Syslog-Visualizer](https://github.com/M9k/PaloAlto-Syslog-Visualizer) adds:
 
-- **Ported to .NET Core 3.1** with an SDK-style project, so it builds with the `dotnet` CLI instead of Visual Studio and .NET Framework 4.7.2.
-- **No crash on Stop capture, Clean or closing the window**: the threads stop with a flag instead of `Thread.Abort`, which is not supported on .NET Core.
-- **No administrator rights required**: Windows allows any user to listen on UDP 514.
-- **Circular buffer fixes**:
-  - after the last slot it goes back to slot 0 and overwrites the oldest entry; before, slot 0 was skipped and the last item index was wrong after the wrap.
-  - the search now includes the entry in slot 0, before it was never shown.
-  - when the buffer is full the status bar shows `100000/100000` instead of restarting from a small number.
-- **Non traffic syslog messages are skipped**: before, every message with less than 54 fields left an empty slot that could crash the search.
-- **Buffer raised from 50000 to 100000 entry**.
-- **No dropped logs during bursts**:
-  - receiving and parsing run on separate threads connected by a queue (max 200000 messages), so the socket is always read while another core parses.
-  - the UDP receive buffer is raised to 32MB from the small Windows default.
-  - tested with 100010 logs sent at about 54000 logs/s on localhost, none were lost (before, about 1.2% were lost at 12000 logs/s).
-- **NAT destination columns fixed**: NAT Destination Address showed the destination address and NAT Destination Port showed an IP, now they read the right fields (10 and 27) of the traffic log.
-- **Modern GUI**:
-  - light and dark theme, following the Windows setting by default, with a toggle button that remembers the choice. The dark theme covers also the title bar, the grid scroll bars and the status bar.
-  - flat buttons with Search as the primary one, Enter starts the search.
-  - the `!` exclude checkboxes are now square toggle buttons, highlighted when on, with a tooltip.
-  - cleaner grid: no row headers, alternating row colors, full row selection, read only, double buffered for smoother scrolling.
-  - the Action column is colored: allow in green, deny/drop/reset in red.
-  - status bar with a capture indicator and thousand separators, updated from the UI thread.
-  - the window opens maximized when it is bigger than the screen, so the status bar is always visible.
-- **Typos fixed** in the column headers and filter labels (Source, Destination, Session ID).
+This is a fork of [M9k/PaloAlto-Syslog-Visualizer](https://github.com/M9k/PaloAlto-Syslog-Visualizer) with the following changes.
 
-## Limitation
-- Some data from the original syslog aren't considered and saved. If you think something important is missing, please tell me.
-The complete field list is documented here: [Palo Alto Traffic log fields](https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/monitoring/use-syslog-for-monitoring/syslog-field-descriptions/traffic-log-fields.html)
-- The flags are shown "as is", without analyzing the meaning of the fields.
-- There is no pagination, only the last 50 entry that match the filter are show.
-- Only traffic logs are supported for now.
-- Search is only possible on certain fields for now
-- Only for Windows.
-- I don't have a logo for the icon.
-- The theme is drawn by the app, the WinForms designer of Visual Studio shows the default colors.
-- .NET Core 3.1 is out of support from Microsoft, moving to .NET 8 only needs the `TargetFramework` changed and the .NET 8 SDK installed.
-- The parsing runs on a single thread, enough for a single firewall but it won't use more than about two cores.
+**Platform**
+- Ported from .NET Framework 4.7.2 to .NET Core 3.1 with an SDK-style project, so it builds with the `dotnet` CLI.
+- Background threads now stop with a flag instead of `Thread.Abort`, which .NET Core does not support. Before, this made Stop capture, Clean and closing the window crash.
+- No longer requires administrator rights, since any Windows user can listen on UDP 514.
+
+**Capture and buffer**
+- Fixed the circular buffer wraparound. It now returns to the first slot and overwrites the oldest entry, and the status bar shows `100,000 / 100,000` when full.
+- Fixed Search never showing the entry in the first slot.
+- Non-traffic syslog messages are skipped. Before, each one left an empty entry that could crash Search.
+- Buffer raised from 50,000 to 100,000 entries.
+- No more dropped logs during bursts:
+  - receiving and parsing run on separate threads connected by a queue, holding up to 200,000 messages;
+  - the UDP receive buffer is raised to 32 MB.
+  - In testing, 100,010 logs sent at about 54,000 logs per second all arrived. Before, about 1.2% were lost at 12,000 logs per second.
+
+**Data**
+- NAT Destination Address and NAT Destination Port now read the correct fields of the traffic log. Before, they showed the destination address and an IP address.
+
+**Interface**
+- Light and dark themes, including the title bar, scroll bars and status bar.
+- Flat buttons, with Search as the primary button.
+- Square `!` filter toggles with tooltips.
+- A cleaner table: no row headers, alternating row colors, full-row selection, read-only cells and smoother scrolling.
+- The window opens maximized when it is larger than the screen.
+- The status bar is updated safely from the UI thread.
+- Fixed typos in column headers and filter labels.
+
+## License
+
+Released under the "Anyone But Palo Alto Networks" license. See [LICENSE.md](LICENSE.md).
