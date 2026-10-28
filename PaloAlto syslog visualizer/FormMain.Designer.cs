@@ -1,4 +1,5 @@
-﻿using System.Windows.Forms;
+﻿using System;
+using System.Windows.Forms;
 
 namespace PaloAlto_syslog_visualizer
 {
@@ -36,6 +37,7 @@ namespace PaloAlto_syslog_visualizer
             this.labelSouceAddress = new System.Windows.Forms.Label();
             this.textBoxSouceAddress = new System.Windows.Forms.TextBox();
             this.buttonPauseStartCapture = new System.Windows.Forms.Button();
+            this.buttonTheme = new System.Windows.Forms.Button();
             this.panelLogs = new System.Windows.Forms.Panel();
             this.lableSearchTip = new System.Windows.Forms.Label();
             this.panel1 = new System.Windows.Forms.Panel();
@@ -68,10 +70,11 @@ namespace PaloAlto_syslog_visualizer
             // buttonSearch
             // 
             this.buttonSearch.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonSearch.Location = new System.Drawing.Point(1418, 9);
+            this.buttonSearch.Location = new System.Drawing.Point(1403, 12);
             this.buttonSearch.Name = "buttonSearch";
-            this.buttonSearch.Size = new System.Drawing.Size(75, 23);
+            this.buttonSearch.Size = new System.Drawing.Size(90, 30);
             this.buttonSearch.TabIndex = 1;
+            this.buttonSearch.Tag = "primary";
             this.buttonSearch.Text = "Search";
             this.buttonSearch.UseVisualStyleBackColor = true;
             this.buttonSearch.Click += new System.EventHandler(this.buttonRefresh_Click);
@@ -79,9 +82,9 @@ namespace PaloAlto_syslog_visualizer
             // buttonClean
             // 
             this.buttonClean.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonClean.Location = new System.Drawing.Point(1314, 9);
+            this.buttonClean.Location = new System.Drawing.Point(1307, 12);
             this.buttonClean.Name = "buttonClean";
-            this.buttonClean.Size = new System.Drawing.Size(75, 23);
+            this.buttonClean.Size = new System.Drawing.Size(90, 30);
             this.buttonClean.TabIndex = 2;
             this.buttonClean.Text = "Clean";
             this.buttonClean.UseVisualStyleBackColor = true;
@@ -92,10 +95,23 @@ namespace PaloAlto_syslog_visualizer
             this.dataGridViewLogs.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
+            this.dataGridViewLogs.AllowUserToAddRows = false;
+            this.dataGridViewLogs.AllowUserToDeleteRows = false;
+            this.dataGridViewLogs.AllowUserToResizeRows = false;
+            this.dataGridViewLogs.CellBorderStyle = System.Windows.Forms.DataGridViewCellBorderStyle.SingleHorizontal;
+            this.dataGridViewLogs.ColumnHeadersBorderStyle = System.Windows.Forms.DataGridViewHeaderBorderStyle.None;
+            this.dataGridViewLogs.ColumnHeadersDefaultCellStyle.Font = new System.Drawing.Font("Segoe UI Semibold", 9F);
+            this.dataGridViewLogs.ColumnHeadersDefaultCellStyle.Padding = new System.Windows.Forms.Padding(4, 6, 4, 6);
+            this.dataGridViewLogs.ColumnHeadersDefaultCellStyle.WrapMode = System.Windows.Forms.DataGridViewTriState.True;
             this.dataGridViewLogs.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            this.dataGridViewLogs.Location = new System.Drawing.Point(3, 51);
+            this.dataGridViewLogs.DefaultCellStyle.Padding = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.dataGridViewLogs.Location = new System.Drawing.Point(3, 56);
             this.dataGridViewLogs.Name = "dataGridViewLogs";
-            this.dataGridViewLogs.Size = new System.Drawing.Size(1490, 802);
+            this.dataGridViewLogs.ReadOnly = true;
+            this.dataGridViewLogs.RowHeadersVisible = false;
+            this.dataGridViewLogs.RowTemplate.Height = 26;
+            this.dataGridViewLogs.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            this.dataGridViewLogs.Size = new System.Drawing.Size(1490, 797);
             this.dataGridViewLogs.TabIndex = 3;
             // 
             // labelSouceAddress
@@ -105,7 +121,7 @@ namespace PaloAlto_syslog_visualizer
             this.labelSouceAddress.Name = "labelSouceAddress";
             this.labelSouceAddress.Size = new System.Drawing.Size(82, 13);
             this.labelSouceAddress.TabIndex = 4;
-            this.labelSouceAddress.Text = "Souce Address:";
+            this.labelSouceAddress.Text = "Source address:";
             // 
             // textBoxSouceAddress
             // 
@@ -117,13 +133,23 @@ namespace PaloAlto_syslog_visualizer
             // buttonPauseStartCapture
             // 
             this.buttonPauseStartCapture.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonPauseStartCapture.Location = new System.Drawing.Point(1198, 9);
+            this.buttonPauseStartCapture.Location = new System.Drawing.Point(1191, 12);
             this.buttonPauseStartCapture.Name = "buttonPauseStartCapture";
-            this.buttonPauseStartCapture.Size = new System.Drawing.Size(110, 23);
+            this.buttonPauseStartCapture.Size = new System.Drawing.Size(110, 30);
             this.buttonPauseStartCapture.TabIndex = 7;
             this.buttonPauseStartCapture.Text = "Stop capture";
             this.buttonPauseStartCapture.UseVisualStyleBackColor = true;
             this.buttonPauseStartCapture.Click += new System.EventHandler(this.buttonPauseStartCapture_Click);
+            //
+            // buttonTheme
+            //
+            this.buttonTheme.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.buttonTheme.Location = new System.Drawing.Point(1065, 12);
+            this.buttonTheme.Name = "buttonTheme";
+            this.buttonTheme.Size = new System.Drawing.Size(110, 30);
+            this.buttonTheme.TabIndex = 8;
+            this.buttonTheme.Text = "Dark mode";
+            this.buttonTheme.Click += new System.EventHandler(this.buttonTheme_Click);
             // 
             // panelLogs
             // 
@@ -135,6 +161,7 @@ namespace PaloAlto_syslog_visualizer
             this.panelLogs.Controls.Add(this.buttonSearch);
             this.panelLogs.Controls.Add(this.buttonClean);
             this.panelLogs.Controls.Add(this.buttonPauseStartCapture);
+            this.panelLogs.Controls.Add(this.buttonTheme);
             this.panelLogs.Controls.Add(this.dataGridViewLogs);
             this.panelLogs.Location = new System.Drawing.Point(0, 2);
             this.panelLogs.Name = "panelLogs";
@@ -144,11 +171,13 @@ namespace PaloAlto_syslog_visualizer
             // lableSearchTip
             // 
             this.lableSearchTip.AutoSize = true;
-            this.lableSearchTip.Font = new System.Drawing.Font("Microsoft Sans Serif", 18F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.lableSearchTip.Location = new System.Drawing.Point(507, 331);
+            this.lableSearchTip.Anchor = System.Windows.Forms.AnchorStyles.None;
+            this.lableSearchTip.Font = new System.Drawing.Font("Segoe UI Semilight", 16F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lableSearchTip.Location = new System.Drawing.Point(560, 400);
             this.lableSearchTip.Name = "lableSearchTip";
             this.lableSearchTip.Size = new System.Drawing.Size(414, 29);
             this.lableSearchTip.TabIndex = 7;
+            this.lableSearchTip.Tag = "hint";
             this.lableSearchTip.Text = "Press \"Search\" to show captured data";
             // 
             // panel1
@@ -173,7 +202,7 @@ namespace PaloAlto_syslog_visualizer
             this.panel1.Controls.Add(this.textBoxSouceAddress);
             this.panel1.Location = new System.Drawing.Point(3, 3);
             this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(928, 45);
+            this.panel1.Size = new System.Drawing.Size(928, 50);
             this.panel1.TabIndex = 6;
             // 
             // checkBoxRuleName
@@ -226,7 +255,7 @@ namespace PaloAlto_syslog_visualizer
             this.labelInboundInterface.Name = "labelInboundInterface";
             this.labelInboundInterface.Size = new System.Drawing.Size(90, 13);
             this.labelInboundInterface.TabIndex = 16;
-            this.labelInboundInterface.Text = "Inbound interface";
+            this.labelInboundInterface.Text = "Inbound interface:";
             // 
             // checkBoxAction
             // 
@@ -278,7 +307,7 @@ namespace PaloAlto_syslog_visualizer
             this.labelDestinationPort.Name = "labelDestinationPort";
             this.labelDestinationPort.Size = new System.Drawing.Size(90, 13);
             this.labelDestinationPort.TabIndex = 10;
-            this.labelDestinationPort.Text = "Destionation port:";
+            this.labelDestinationPort.Text = "Destination port:";
             // 
             // checkBoxDestinationAddress
             // 
@@ -314,7 +343,7 @@ namespace PaloAlto_syslog_visualizer
             this.labelDestionationAddress.Name = "labelDestionationAddress";
             this.labelDestionationAddress.Size = new System.Drawing.Size(110, 13);
             this.labelDestionationAddress.TabIndex = 6;
-            this.labelDestionationAddress.Text = "Destionation Address:";
+            this.labelDestionationAddress.Text = "Destination address:";
             // 
             // statusStrip1
             // 
@@ -324,18 +353,22 @@ namespace PaloAlto_syslog_visualizer
             this.toolStripStatusTotal});
             this.statusStrip1.Location = new System.Drawing.Point(0, 861);
             this.statusStrip1.Name = "statusStrip1";
+            this.statusStrip1.Padding = new System.Windows.Forms.Padding(8, 2, 8, 2);
+            this.statusStrip1.SizingGrip = false;
             this.statusStrip1.Size = new System.Drawing.Size(1496, 22);
             this.statusStrip1.TabIndex = 9;
             this.statusStrip1.Text = "statusStrip1";
             // 
             // toolStripStatusSyslog
             // 
+            this.toolStripStatusSyslog.Margin = new System.Windows.Forms.Padding(0, 3, 16, 2);
             this.toolStripStatusSyslog.Name = "toolStripStatusSyslog";
             this.toolStripStatusSyslog.Size = new System.Drawing.Size(77, 17);
             this.toolStripStatusSyslog.Text = "Capture is on";
             // 
             // toolStripStatusBuffer
             // 
+            this.toolStripStatusBuffer.Margin = new System.Windows.Forms.Padding(0, 3, 16, 2);
             this.toolStripStatusBuffer.Name = "toolStripStatusBuffer";
             this.toolStripStatusBuffer.Size = new System.Drawing.Size(56, 17);
             this.toolStripStatusBuffer.Text = "Buffer: 0/";
@@ -350,9 +383,11 @@ namespace PaloAlto_syslog_visualizer
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.AcceptButton = this.buttonSearch;
             this.ClientSize = new System.Drawing.Size(1496, 883);
             this.Controls.Add(this.statusStrip1);
             this.Controls.Add(this.panelLogs);
+            this.MinimumSize = new System.Drawing.Size(1100, 400);
             this.Name = "FormMain";
             this.Text = "PaloAlto Syslog Visualizer";
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.FormMain_FormClosed);
@@ -375,18 +410,36 @@ namespace PaloAlto_syslog_visualizer
         private System.Windows.Forms.DataGridView dataGridViewLogs;
         private System.Windows.Forms.Label labelSouceAddress;
         private System.Windows.Forms.Button buttonPauseStartCapture;
+        private System.Windows.Forms.Button buttonTheme;
 
+        // called every second by the status refresh thread
         public void SetStatusValues(uint buffer, uint total)
         {
-            this.toolStripStatusBuffer.Text = "Buffer: "+buffer+"/" + Program.databaseSize;
-            this.toolStripStatusTotal.Text = "Total logs: "+total;
+            if (!IsHandleCreated || IsDisposed)
+                return;
+            if (InvokeRequired)
+            {
+                try
+                {
+                    BeginInvoke((MethodInvoker)(() => SetStatusValues(buffer, total)));
+                }
+                catch (Exception)
+                {
+                    ; // the form is closing
+                }
+                return;
+            }
+            this.toolStripStatusBuffer.Text = "Buffer: " + buffer.ToString("N0") + " / " + Program.databaseSize.ToString("N0");
+            this.toolStripStatusTotal.Text = "Total logs: " + total.ToString("N0");
         }
         public void SetCaptureStatus(bool capturing)
         {
+            captureOn = capturing;
             if (capturing)
-                this.toolStripStatusSyslog.Text = "Capture is on";
+                this.toolStripStatusSyslog.Text = "● Capture is on";
             else
-                this.toolStripStatusSyslog.Text = "Capture is off";
+                this.toolStripStatusSyslog.Text = "● Capture is off";
+            this.toolStripStatusSyslog.ForeColor = capturing ? theme.Allow : theme.TextMuted;
         }
 
         private Panel panelLogs;
