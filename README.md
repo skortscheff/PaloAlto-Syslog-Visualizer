@@ -19,19 +19,81 @@ A lightweight Windows app that receives traffic logs from a Palo Alto Networks f
 - Uses about 230 MB of RAM with a full buffer of real logs, and very little CPU.
 - Runs as a normal user; administrator rights are not needed.
 
-## Requirements
+## Getting started
 
-- Windows 10 or 11
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) to build, or only the .NET 10 Desktop Runtime to run a built copy. Visual Studio is not needed.
+### 1. Install the tools
 
-## Build and run
+You need Windows 10 or 11, [Git](https://git-scm.com/download/win) and the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0). Visual Studio is not needed.
+
+The quickest way is winget, from PowerShell or Command Prompt:
+
+```
+winget install --id Git.Git -e
+winget install --id Microsoft.DotNet.SDK.10 -e
+```
+
+Open a new terminal afterwards and check that both are found:
+
+```
+git --version
+dotnet --list-sdks
+```
+
+`dotnet --list-sdks` should list a `10.0.x` version.
+
+### 2. Clone the repository
+
+```
+git clone https://github.com/skortscheff/PaloAlto-Syslog-Visualizer.git
+cd PaloAlto-Syslog-Visualizer
+```
+
+### 3. Build and run
+
+From the repository folder:
 
 ```
 dotnet build
 dotnet run --project "PaloAlto syslog visualizer"
 ```
 
-The first time logs arrive from another machine, Windows Firewall may ask you to allow the app.
+The window opens and starts listening on UDP 514 right away. The first time logs arrive from another machine, Windows Firewall may ask you to allow the app: allow it on the network the firewall sends from.
+
+The build takes a few seconds, and `dotnet run` only rebuilds when the code changed.
+
+### 4. Make a copy to run without the SDK (optional)
+
+To use the app on a PC without the SDK, publish it. There are two options; both put the result in a `publish` folder under `PaloAlto syslog visualizer\bin\Release\net10.0-windows\`.
+
+**Single file, nothing else to install** (about 110 MB, includes .NET):
+
+```
+dotnet publish "PaloAlto syslog visualizer" -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
+```
+
+Copy `win-x64\publish\PaloAlto syslog visualizer.exe` to the other PC and run it. The first time, this command downloads the .NET runtime files it bundles, so it needs internet access.
+
+**Small build** (under 1 MB, needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) on that PC):
+
+```
+dotnet publish "PaloAlto syslog visualizer" -c Release
+```
+
+Copy the whole `publish` folder and run `PaloAlto syslog visualizer.exe` from it.
+
+### 5. Update to the latest version
+
+```
+git pull
+dotnet run --project "PaloAlto syslog visualizer"
+```
+
+### Troubleshooting
+
+- **`dotnet` is not recognized**, or the build says the `net10.0-windows` target is not supported: the .NET 10 SDK is missing or the terminal was opened before installing it. Install it and open a new terminal.
+- **The app closes right after starting**, and `dotnet run` shows a `SocketException` about the address already being in use: another program is using UDP port 514, often another syslog server. Stop it, or run the app on a different PC.
+- **No logs arrive from the firewall**: check that Windows Firewall allows the app (Windows Security > Firewall & network protection > Allow an app through firewall), and that the syslog profile on the firewall points to this PC's IP address. See [Configure the firewall](#configure-the-firewall).
+- **Build errors after switching branches or updating**: delete the `bin` and `obj` folders inside `PaloAlto syslog visualizer` and build again.
 
 ## Configure the firewall
 
