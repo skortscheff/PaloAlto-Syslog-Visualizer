@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -35,8 +36,12 @@ namespace PaloAlto_syslog_visualizer
         [STAThread]
         static void Main()
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
+            // visual styles, text rendering and per monitor DPI awareness, from the project file
+            ApplicationConfiguration.Initialize();
+            // Windows 11 UI font, Windows 10 keeps the Segoe UI default
+            using (Font variable = new Font("Segoe UI Variable Text", 9F))
+                if (variable.Name == "Segoe UI Variable Text")
+                    Application.SetDefaultFont(new Font("Segoe UI Variable Text", 9F));
             formMain = new FormMain();
 
             StartCapture();
@@ -133,19 +138,17 @@ namespace PaloAlto_syslog_visualizer
 
         public static void ThreadParse()
         {
-            string sReceive;
-
             foreach (byte[] bReceive in receiveQueue.GetConsumingEnumerable())
             {
                 try
                 {
-                    sReceive = Encoding.ASCII.GetString(bReceive);
+                    // PAN-OS sends UTF-8, user and host names can be non ASCII
+                    string[] receivedData = LogFields.Split(Encoding.UTF8.GetString(bReceive));
 
-                    string[] receivedData = sReceive.Split(',');
-
-                    // not a traffic log, skip it instead of leaving an empty slot
-                    if (receivedData.Length < 54)
+                    // only traffic logs, skip the others instead of leaving a wrong or empty slot
+                    if (receivedData.Length < LogFields.MinimumFields || receivedData[LogFields.Type] != "TRAFFIC")
                         continue;
+                    StructEntryLog entry = new StructEntryLog(bReceive, receivedData);
 
                     // Search reads the slots on the UI thread, never let it see a half written one
                     lock (databaseLock)
@@ -158,36 +161,7 @@ namespace PaloAlto_syslog_visualizer
                             databaseOverwrite = true;
                         }
 
-                        database[indexDB].strAction = receivedData[30];
-                        database[indexDB].strActionSource = receivedData[53];
-                        database[indexDB].strApplication = receivedData[14];
-                        database[indexDB].strBytes = receivedData[31];
-                        database[indexDB].strBytesReceived = receivedData[32];
-                        database[indexDB].strBytesSent = receivedData[33];
-                        database[indexDB].strCategory = receivedData[37];
-                        database[indexDB].strDentinationZone = receivedData[17];
-                        database[indexDB].strDestinationAddress = receivedData[8];
-                        database[indexDB].strDestinationPort = receivedData[25];
-                        database[indexDB].strElapsedTime = receivedData[36];
-                        database[indexDB].strFlags = receivedData[28];
-                        database[indexDB].strInboundInterface = receivedData[18];
-                        database[indexDB].strNatDestinationIP = receivedData[10];
-                        database[indexDB].strNATDestinationPort = receivedData[27];
-                        database[indexDB].strNATSourceIP = receivedData[9];
-                        database[indexDB].strNATSourcePort = receivedData[26];
-                        database[indexDB].strOutboundInterface = receivedData[19];
-                        database[indexDB].strPackets = receivedData[34];
-                        database[indexDB].strPacketsReceived = receivedData[45];
-                        database[indexDB].strPacketsSent = receivedData[44];
-                        database[indexDB].strProtocol = receivedData[29];
-                        database[indexDB].strReceiveTime = receivedData[1];
-                        database[indexDB].strRuleName = receivedData[11];
-                        database[indexDB].strSessionEndReason = receivedData[46];
-                        database[indexDB].strSessionID = receivedData[22];
-                        database[indexDB].strSourceAddress = receivedData[7];
-                        database[indexDB].strSourcePort = receivedData[24];
-                        database[indexDB].strSourceUser = receivedData[13];
-                        database[indexDB].strSourceZone = receivedData[16];
+                        database[indexDB] = entry;
 
                         // publish the slot only once it is fully written
                         databaseIndexLastItem = indexDB;

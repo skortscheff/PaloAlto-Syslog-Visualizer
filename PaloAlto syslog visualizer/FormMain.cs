@@ -14,13 +14,23 @@ namespace PaloAlto_syslog_visualizer
     {
         Theme theme;
         Font actionFont;
-        // each filter text box with its exclude toggle
-        readonly (CheckBox checkBox, TextBox textBox)[] filters;
+        // each filter text box with its exclude toggle and the log field it searches
+        readonly (CheckBox checkBox, TextBox textBox, Func<StructEntryLog, string> field)[] filters;
+        readonly ToolTip toolTip = new ToolTip();
+        // columns shown in the grid, in log field order
+        List<LogField> visibleColumns;
+        // logs of the last search, shown again when the columns change
+        List<StructEntryLog> lastResults;
+        readonly ContextMenuStrip columnsMenu = new ContextMenuStrip();
+        // sun and moon glyphs of the icon font, null when neither icon font is installed
+        readonly Font iconFont = ThemeManager.IconFont(11F);
+        const string glyphSun = "", glyphMoon = "";
 
         public FormMain()
         {
             // saved choice of the toggle, otherwise follow the Windows app mode
-            string savedTheme = LoadSavedTheme();
+            string savedTheme = ReadSetting(() => Properties.Settings.Default.Theme);
+            visibleColumns = ParseColumns(ReadSetting(() => Properties.Settings.Default.Columns));
             if (savedTheme == "Dark")
                 theme = Theme.Dark;
             else if (savedTheme == "Light")
@@ -30,20 +40,34 @@ namespace PaloAlto_syslog_visualizer
 
             InitializeComponent();
 
-            filters = new[] {
-                (checkBoxSouceAddress, textBoxSouceAddress), (checkBoxDestinationAddress, textBoxDestinationAddress),
-                (checkBoxDestinationPort, textBoxDestinationPort), (checkBoxAction, textBoxAction),
-                (checkBoxInboundInterface, textBoxInboundInterface), (checkBoxRuleName, textBoxRuleName) };
+            filters = new (CheckBox, TextBox, Func<StructEntryLog, string>)[] {
+                (checkBoxSouceAddress, textBoxSouceAddress, entry => entry.strSourceAddress),
+                (checkBoxDestinationAddress, textBoxDestinationAddress, entry => entry.strDestinationAddress),
+                (checkBoxDestinationPort, textBoxDestinationPort, entry => entry.strDestinationPort),
+                (checkBoxAction, textBoxAction, entry => entry.strAction),
+                (checkBoxInboundInterface, textBoxInboundInterface, entry => entry.strInboundInterface),
+                (checkBoxRuleName, textBoxRuleName, entry => entry.strRuleName) };
+
+            // column picker, from the Columns button or a right click on a column header
+            columnsMenu.Opening += (s, e) => BuildColumnsMenu();
+            // stay open while columns are checked, like the Monitor tab
+            columnsMenu.Closing += (s, e) => { if (e.CloseReason == ToolStripDropDownCloseReason.ItemClicked) e.Cancel = true; };
+            dataGridViewLogs.ColumnHeaderMouseClick += (s, e) => { if (e.Button == MouseButtons.Right) columnsMenu.Show(Cursor.Position); };
 
             // smoother scrolling and repaint of the grid
             typeof(DataGridView).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
                 .SetValue(dataGridViewLogs, true);
             dataGridViewLogs.CellFormatting += dataGridViewLogs_CellFormatting;
+            dataGridViewLogs.VirtualMode = true;
+            dataGridViewLogs.CellValueNeeded += dataGridViewLogs_CellValueNeeded;
 
-            ToolTip toolTip = new ToolTip();
-            foreach ((CheckBox checkBox, TextBox _) in filters)
+            if (iconFont != null)
+                buttonTheme.Font = iconFont;
+
+            foreach ((CheckBox checkBox, TextBox _, var _) in filters)
                 toolTip.SetToolTip(checkBox, "Exclude the logs that match this filter");
-            toolTip.SetToolTip(buttonSearch, "Show the last 50 logs that match the filters (Enter)");
+            toolTip.SetToolTip(buttonColumns, "Choose the columns to show, also with a right click on a column header");
+            toolTip.SetToolTip(buttonSearch, "Show every log that matches the filters, newest first (Enter)");
             toolTip.SetToolTip(buttonClean, "Empty the buffer");
         }
 
@@ -54,32 +78,53 @@ namespace PaloAlto_syslog_visualizer
             if (Width > workingArea.Width || Height > workingArea.Height)
                 WindowState = FormWindowState.Maximized;
 
-            // square exclude toggles next to their text box, sized after the DPI scaling
-            foreach ((CheckBox checkBox, TextBox textBox) in filters)
+            foreach ((CheckBox checkBox, TextBox _, var _) in filters)
             {
                 checkBox.AutoSize = false;
-                checkBox.Bounds = new Rectangle(textBox.Right + 2, textBox.Top, textBox.Height, textBox.Height);
                 checkBox.CheckedChanged += (s, ev) => ThemeManager.ApplyToCheckBox(checkBox, theme);
             }
+            ApplyDpiSizes();
+            DpiChanged += (s, ev) => BeginInvoke((MethodInvoker)ApplyDpiSizes);
 
             ApplyTheme();
             // keep the hint centered, Anchor None keeps it there on resize
             lableSearchTip.Location = new Point((panelLogs.Width - lableSearchTip.Width) / 2, (panelLogs.Height - lableSearchTip.Height) / 2);
         }
 
+        // sizes WinForms doesn't scale by itself, set again when the window moves to a monitor with another DPI
+        private void ApplyDpiSizes()
+        {
+            // square exclude toggles next to their text box
+            foreach ((CheckBox checkBox, TextBox textBox, var _) in filters)
+                checkBox.Bounds = new Rectangle(textBox.Right + LogicalToDeviceUnits(2), textBox.Top, textBox.Height, textBox.Height);
+
+            dataGridViewLogs.RowTemplate.Height = LogicalToDeviceUnits(26);
+            dataGridViewLogs.DefaultCellStyle.Padding = new Padding(LogicalToDeviceUnits(4), 0, LogicalToDeviceUnits(4), 0);
+            int headerX = LogicalToDeviceUnits(4), headerY = LogicalToDeviceUnits(6);
+            dataGridViewLogs.ColumnHeadersDefaultCellStyle.Padding = new Padding(headerX, headerY, headerX, headerY);
+        }
+
         private void ApplyTheme()
         {
             ThemeManager.Apply(this, theme);
             SetCaptureStatus(Program.IsCapturing);
-            buttonTheme.Text = theme.IsDark ? "Light mode" : "Dark mode";
+
+            // the icon shows the theme the button switches to
+            string action = theme.IsDark ? "Switch to light mode" : "Switch to dark mode";
+            if (iconFont != null)
+                buttonTheme.Text = theme.IsDark ? glyphSun : glyphMoon;
+            else
+                buttonTheme.Text = theme.IsDark ? "☀" : "☾";
+            buttonTheme.AccessibleName = action;
+            toolTip.SetToolTip(buttonTheme, action);
         }
 
         // a corrupt user.config (e.g. truncated by a power loss) must not stop the app from starting
-        private static string LoadSavedTheme()
+        private static string ReadSetting(Func<string> read)
         {
             try
             {
-                return Properties.Settings.Default.Theme;
+                return read();
             }
             catch (System.Configuration.ConfigurationErrorsException ex)
             {
@@ -126,187 +171,140 @@ namespace PaloAlto_syslog_visualizer
             }
         }
 
-        private String[] columnsHeader =
-        {
-            "Receive Time",
-            "Source Address",
-            "Destination Address",
-            "NAT Source IP",
-            "NAT Destination Address",
-            "Rule Name",
-            "Destination User",
-            "Application",
-            "Source Zone",
-            "Destination Zone",
-            "Inbound Interface",
-            "Outbound Interface",
-            "Session ID",
-            "Source Port",
-            "Destination Port",
-            "NAT Source Port",
-            "NAT Destination Port",
-            "Flags",
-            "Protocol",
-            "Action",
-            "Bytes",
-            "Bytes Received",
-            "Bytes Sent",
-            "Packets",
-            "Elapsed Time",
-            "Category",
-            "Packets Sent",
-            "Packets Received",
-            "Session End Reason",
-            "Action Source"
-        };
-
-        private enum searchParameter
-        {
-            SourceAddress,
-            DestinationAddress,
-            DestinationPort,
-            Action,
-            InboundInterface,
-            RuleName
-        };
-
-        private int[] getIndexOfIndexSearchParameter(int indexDB)
-        {
-            int[] indexOfIndexSearchParameter = new int[Enum.GetNames(typeof(searchParameter)).Length];
-            indexOfIndexSearchParameter[(int)searchParameter.SourceAddress] = Program.database[indexDB].strSourceAddress.IndexOf(textBoxSouceAddress.Text, StringComparison.CurrentCultureIgnoreCase);
-            indexOfIndexSearchParameter[(int)searchParameter.DestinationAddress] = Program.database[indexDB].strDestinationAddress.IndexOf(textBoxDestinationAddress.Text, StringComparison.CurrentCultureIgnoreCase);
-            indexOfIndexSearchParameter[(int)searchParameter.DestinationPort] = Program.database[indexDB].strDestinationPort.IndexOf(textBoxDestinationPort.Text, StringComparison.CurrentCultureIgnoreCase);
-            indexOfIndexSearchParameter[(int)searchParameter.Action] = Program.database[indexDB].strAction.IndexOf(textBoxAction.Text, StringComparison.CurrentCultureIgnoreCase);
-            indexOfIndexSearchParameter[(int)searchParameter.InboundInterface] = Program.database[indexDB].strInboundInterface.IndexOf(textBoxInboundInterface.Text, StringComparison.CurrentCultureIgnoreCase);
-            indexOfIndexSearchParameter[(int)searchParameter.RuleName] = Program.database[indexDB].strRuleName.IndexOf(textBoxRuleName.Text, StringComparison.CurrentCultureIgnoreCase);
-            
-            return indexOfIndexSearchParameter;
-        }
-
-        private bool[] getCheckBoxCheckedSearchParameter()
-        {
-            bool[] checkBoxCheckedSearchParameter = new bool[Enum.GetNames(typeof(searchParameter)).Length];
-            checkBoxCheckedSearchParameter[(int)searchParameter.SourceAddress] = checkBoxSouceAddress.Checked;
-            checkBoxCheckedSearchParameter[(int)searchParameter.DestinationAddress] = checkBoxDestinationAddress.Checked;
-            checkBoxCheckedSearchParameter[(int)searchParameter.DestinationPort] = checkBoxDestinationPort.Checked;
-            checkBoxCheckedSearchParameter[(int)searchParameter.Action] = checkBoxAction.Checked;
-            checkBoxCheckedSearchParameter[(int)searchParameter.InboundInterface] = checkBoxInboundInterface.Checked;
-            checkBoxCheckedSearchParameter[(int)searchParameter.RuleName] = checkBoxRuleName.Checked;
-
-            return checkBoxCheckedSearchParameter;
-        }
-
-        private bool[] getSearchByParameter()
-        {
-            bool[] searchByParameter = new bool[Enum.GetNames(typeof(searchParameter)).Length]; //all false by default
-
-            if (textBoxSouceAddress.Text != "")
-                searchByParameter[(int)searchParameter.SourceAddress] = true;
-            if (textBoxDestinationAddress.Text != "")
-                searchByParameter[(int)searchParameter.DestinationAddress] = true;
-            if (textBoxDestinationPort.Text != "")
-                searchByParameter[(int)searchParameter.DestinationPort] = true;
-            if (textBoxAction.Text != "")
-                searchByParameter[(int)searchParameter.Action] = true;
-            if (textBoxInboundInterface.Text != "")
-                searchByParameter[(int)searchParameter.InboundInterface] = true;
-            if (textBoxRuleName.Text != "")
-                searchByParameter[(int)searchParameter.RuleName] = true;
-
-            return searchByParameter;
-        }
-
         private void buttonRefresh_Click(object sender, EventArgs e)
         {
-            lableSearchTip.Visible = false;
-            DataTable dt = new DataTable();
+            // only the filters with a text, the ! toggle shows the logs that don't match
+            var activeFilters = filters.Where(f => f.textBox.Text != "")
+                .Select(f => (text: f.textBox.Text, exclude: f.checkBox.Checked, f.field)).ToArray();
 
-
-            foreach (String column in columnsHeader)
-                dt.Columns.Add(column, typeof(string));
-
-            bool[] searchByParameter = getSearchByParameter();
-
-            bool searchIsOn = false;
-            foreach (int enumIndex in Enum.GetValues(typeof(searchParameter)))
-                if (searchByParameter[enumIndex])
-                    searchIsOn = true;
-
+            List<StructEntryLog> found = new List<StructEntryLog>();
             // the parse thread waits while the buffer is scanned, new logs stay in its queue
             lock (Program.databaseLock)
             {
-                int itemLeftToPrint = 50;
-                int lastItemWrited = (int)Program.databaseIndexLastItem;
-                if (lastItemWrited != -1)
+                int size = (int)Program.databaseSize;
+                int last = Program.databaseIndexLastItem;
+                int count = Program.databaseOverwrite ? size : last + 1;
+                // every match, from the newest log back to the oldest one of the circular buffer
+                for (int n = 0; n < count; n++)
                 {
-                    bool[] checkBoxCheckedSearchParameter = getCheckBoxCheckedSearchParameter();
-                    for (int indexDB = lastItemWrited; indexDB >= 0 && itemLeftToPrint > 0; indexDB--)
-                    {
-                        if (searchIsOn)
-                        {
-                            int[] indexOfIndexSearchParameter = getIndexOfIndexSearchParameter(indexDB);
-
-                            bool matchTheFilter = true;
-                            foreach (int enumIndex in Enum.GetValues(typeof(searchParameter)))
-                                if (matchTheFilter) //if it's false I don't care anymore
-                                    matchTheFilter = !searchByParameter[enumIndex] || (checkBoxCheckedSearchParameter[enumIndex] ? indexOfIndexSearchParameter[enumIndex] == -1 : indexOfIndexSearchParameter[enumIndex] != -1);
-
-                            if(matchTheFilter)
-                            {
-                                dt.Rows.Add(Program.database[indexDB].getAll);
-                                itemLeftToPrint--;
-                            }
-                        }
-                        else
-                        {
-                            dt.Rows.Add(Program.database[indexDB].getAll);
-                            itemLeftToPrint--;
-                        }
-                    }
-
-                    if (itemLeftToPrint > 0 && Program.databaseOverwrite)
-                    {
-                        int indexDB = (int)Program.databaseSize - 1;
-                        while (indexDB > lastItemWrited && itemLeftToPrint > 0)
-                        {
-                            if (searchIsOn)
-                            {
-                                int[] indexOfIndexSearchParameter = getIndexOfIndexSearchParameter(indexDB);
-
-                                bool matchTheFilter = true;
-                                foreach (int enumIndex in Enum.GetValues(typeof(searchParameter)))
-                                    if (matchTheFilter) //if it's false I don't care anymore
-                                        matchTheFilter = !searchByParameter[enumIndex] || (checkBoxCheckedSearchParameter[enumIndex] ? indexOfIndexSearchParameter[enumIndex] == -1 : indexOfIndexSearchParameter[enumIndex] != -1);
-
-                                if (matchTheFilter)
-                                {
-                                    dt.Rows.Add(Program.database[indexDB].getAll);
-                                    itemLeftToPrint--;
-                                }
-                            }
-                            else {
-                                dt.Rows.Add(Program.database[indexDB].getAll);
-                                itemLeftToPrint--;
-                            }
-                            indexDB--;
-                        }
-                    }
+                    StructEntryLog entry = Program.database[(last - n + size) % size];
+                    if (activeFilters.All(f => (f.field(entry).IndexOf(f.text, StringComparison.CurrentCultureIgnoreCase) != -1) != f.exclude))
+                        found.Add(entry);
                 }
             }
 
-            dataGridViewLogs.DataSource = dt;
+            lastResults = found;
+            ShowResults();
+        }
 
-            // not sortable
-            foreach (DataGridViewColumn column in dataGridViewLogs.Columns)
-                column.SortMode = DataGridViewColumnSortMode.NotSortable;
+        // shows the last search with the selected columns. The grid is in virtual mode: it asks
+        // for the cells on screen only, so it can hold the whole buffer
+        private void ShowResults()
+        {
+            if (lastResults == null)
+                return;
+            lableSearchTip.Visible = false;
 
-            // resize the columns
-            foreach (DataGridViewColumn column in dataGridViewLogs.Columns)
-                column.AutoSizeMode = DataGridViewAutoSizeColumnMode.AllCells;
+            dataGridViewLogs.RowCount = 0;
+            dataGridViewLogs.Columns.Clear();
+            foreach (LogField column in visibleColumns)
+                dataGridViewLogs.Columns.Add(new DataGridViewTextBoxColumn
+                {
+                    Name = column.Name,
+                    HeaderText = column.Name,
+                    Tag = column,
+                    SortMode = DataGridViewColumnSortMode.NotSortable,
+                });
+            cachedRow = -1;
+            dataGridViewLogs.RowCount = lastResults.Count;
+
+            // fit the columns to the logs on screen, then leave them to the user
+            dataGridViewLogs.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
+            toolStripStatusResults.Text = "Search: " + lastResults.Count.ToString("N0") + " logs";
 
             // the scroll bars are created with the first data, theme them too
             ThemeManager.ApplyToScrollBars(dataGridViewLogs, theme);
+        }
 
+        // fields of the last row the grid asked for, a row is parsed once for all its cells
+        private int cachedRow = -1;
+        private string[] cachedFields;
+
+        private void dataGridViewLogs_CellValueNeeded(object sender, DataGridViewCellValueEventArgs e)
+        {
+            if (lastResults == null || e.RowIndex >= lastResults.Count)
+                return;
+            if (e.RowIndex != cachedRow)
+            {
+                cachedFields = lastResults[e.RowIndex].getAll;
+                cachedRow = e.RowIndex;
+            }
+            int index = ((LogField)dataGridViewLogs.Columns[e.ColumnIndex].Tag).Index;
+            e.Value = index < cachedFields.Length ? cachedFields[index] : "";
+        }
+
+        // like the Monitor tab: the shown columns first, then the others by name
+        private void BuildColumnsMenu()
+        {
+            columnsMenu.Items.Clear();
+            ToolStripMenuItem reset = new ToolStripMenuItem("Reset to default columns");
+            reset.Click += (s, e) => { SetVisibleColumns(LogFields.All.Where(f => f.Default)); columnsMenu.Close(); };
+            columnsMenu.Items.Add(reset);
+            columnsMenu.Items.Add(new ToolStripSeparator());
+
+            foreach (LogField field in visibleColumns.Concat(LogFields.All.Except(visibleColumns).OrderBy(f => f.Name)))
+            {
+                ToolStripMenuItem item = new ToolStripMenuItem(field.Name) { Checked = visibleColumns.Contains(field), CheckOnClick = true, Tag = field };
+                item.CheckedChanged += columnItem_CheckedChanged;
+                columnsMenu.Items.Add(item);
+            }
+            ThemeManager.ApplyToMenu(columnsMenu, theme);
+        }
+
+        private void columnItem_CheckedChanged(object sender, EventArgs e)
+        {
+            ToolStripMenuItem item = (ToolStripMenuItem)sender;
+            LogField field = (LogField)item.Tag;
+            // keep at least one column
+            if (!item.Checked && visibleColumns.Count == 1)
+            {
+                item.Checked = true;
+                return;
+            }
+            SetVisibleColumns(item.Checked ? visibleColumns.Append(field) : visibleColumns.Where(f => f != field));
+        }
+
+        // shows the columns in log field order, remembers them and redraws the last search
+        private void SetVisibleColumns(IEnumerable<LogField> columns)
+        {
+            HashSet<LogField> selected = new HashSet<LogField>(columns);
+            visibleColumns = LogFields.All.Where(selected.Contains).ToList();
+            try
+            {
+                Properties.Settings.Default.Columns = string.Join(",", visibleColumns.Select(c => c.Index));
+                Properties.Settings.Default.Save();
+            }
+            catch (System.Configuration.ConfigurationErrorsException)
+            {
+                ; // the columns still change, they are just not remembered
+            }
+            ShowResults();
+        }
+
+        // saved column indexes, the default columns when none are saved or none is valid
+        private static List<LogField> ParseColumns(string saved)
+        {
+            HashSet<int> indexes = new HashSet<int>();
+            foreach (string part in (saved ?? "").Split(','))
+                if (int.TryParse(part, out int index))
+                    indexes.Add(index);
+            List<LogField> columns = LogFields.All.Where(f => indexes.Contains(f.Index)).ToList();
+            return columns.Count > 0 ? columns : LogFields.All.Where(f => f.Default).ToList();
+        }
+
+        private void buttonColumns_Click(object sender, EventArgs e)
+        {
+            columnsMenu.Show(buttonColumns, new Point(0, buttonColumns.Height));
         }
 
         private void buttonPauseStartCapture_Click(object sender, EventArgs e)
@@ -332,8 +330,14 @@ namespace PaloAlto_syslog_visualizer
             Program.resetDB();
             if (wasCapturing)
                 Program.StartCapture();
-            else
-                SetStatusValues(0, 0);
+
+            // show the empty buffer right away instead of the rows of the last search
+            lastResults = null;
+            dataGridViewLogs.RowCount = 0;
+            dataGridViewLogs.Columns.Clear();
+            toolStripStatusResults.Text = "";
+            lableSearchTip.Visible = true;
+            SetStatusValues(0, 0);
         }
 
     }

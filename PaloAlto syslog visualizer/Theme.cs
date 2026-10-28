@@ -124,6 +124,9 @@ namespace PaloAlto_syslog_visualizer
                     case DataGridView grid:
                         ApplyToGrid(grid, theme);
                         break;
+                    case Button button when button.Tag as string == "icon":
+                        ApplyToIconButton(button, theme);
+                        break;
                     case Button button:
                         ApplyToButton(button, theme, button.Tag as string == "primary");
                         break;
@@ -182,6 +185,32 @@ namespace PaloAlto_syslog_visualizer
             button.Cursor = Cursors.Hand;
         }
 
+        // borderless glyph button that only shows a background on hover
+        static void ApplyToIconButton(Button button, Theme theme)
+        {
+            button.FlatStyle = FlatStyle.Flat;
+            button.UseVisualStyleBackColor = false;
+            button.FlatAppearance.BorderSize = 0;
+            button.BackColor = theme.Window;
+            button.ForeColor = theme.TextMuted;
+            button.FlatAppearance.MouseOverBackColor = theme.ButtonHover;
+            button.FlatAppearance.MouseDownBackColor = theme.Border;
+            button.Cursor = Cursors.Hand;
+        }
+
+        // Segoe Fluent Icons on Windows 11, Segoe MDL2 Assets on Windows 10, same code points
+        public static Font IconFont(float size)
+        {
+            foreach (string family in new[] { "Segoe Fluent Icons", "Segoe MDL2 Assets" })
+            {
+                Font font = new Font(family, size);
+                if (font.Name == family)
+                    return font;
+                font.Dispose();
+            }
+            return null;
+        }
+
         static void ApplyToGrid(DataGridView grid, Theme theme)
         {
             grid.BackgroundColor = theme.GridBack;
@@ -223,12 +252,21 @@ namespace PaloAlto_syslog_visualizer
             SetWindowPos(form.Handle, IntPtr.Zero, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
         }
 
-        // Status bar without the gradient and the border of the default renderer
+        // menus such as the column picker
+        public static void ApplyToMenu(ToolStripDropDown menu, Theme theme)
+        {
+            menu.Renderer = new FlatToolStripRenderer(theme);
+            menu.BackColor = theme.Surface;
+            foreach (ToolStripItem item in menu.Items)
+                item.ForeColor = theme.Text;
+        }
+
+        // Flat status bar and menus in the theme colors, without the gradients of the default renderer
         sealed class FlatToolStripRenderer : ToolStripProfessionalRenderer
         {
             readonly Theme theme;
 
-            public FlatToolStripRenderer(Theme theme)
+            public FlatToolStripRenderer(Theme theme) : base(new ThemeColorTable(theme))
             {
                 this.theme = theme;
                 RoundedEdges = false;
@@ -236,6 +274,11 @@ namespace PaloAlto_syslog_visualizer
 
             protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
             {
+                if (!(e.ToolStrip is StatusStrip))
+                {
+                    base.OnRenderToolStripBackground(e);
+                    return;
+                }
                 using (SolidBrush brush = new SolidBrush(theme.Surface))
                     e.Graphics.FillRectangle(brush, e.AffectedBounds);
                 using (Pen pen = new Pen(theme.Border))
@@ -244,11 +287,61 @@ namespace PaloAlto_syslog_visualizer
 
             protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
             {
+                if (!(e.ToolStrip is ToolStripDropDown))
+                    return;
+                using (Pen pen = new Pen(theme.Border))
+                    e.Graphics.DrawRectangle(pen, 0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1);
+            }
+
+            protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+            {
+                e.TextColor = theme.Text;
+                base.OnRenderItemText(e);
+            }
+
+            // the default check mark is black, invisible in the dark theme
+            protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
+            {
+                Rectangle box = e.ImageRectangle;
+                float unit = box.Height / 16f;
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                using (Pen pen = new Pen(theme.Accent, 2f * unit))
+                    e.Graphics.DrawLines(pen, new[] {
+                        new PointF(box.X + 3 * unit, box.Y + 8.5f * unit),
+                        new PointF(box.X + 6.5f * unit, box.Y + 12 * unit),
+                        new PointF(box.X + 13 * unit, box.Y + 4.5f * unit) });
             }
 
             protected override void OnRenderStatusStripSizingGrip(ToolStripRenderEventArgs e)
             {
             }
+        }
+
+        // colors of the menus: theme background, hover like the buttons, no image margin gradient
+        sealed class ThemeColorTable : ProfessionalColorTable
+        {
+            readonly Theme theme;
+
+            public ThemeColorTable(Theme theme)
+            {
+                this.theme = theme;
+                UseSystemColors = false;
+            }
+
+            public override Color ToolStripDropDownBackground => theme.Surface;
+            public override Color ImageMarginGradientBegin => theme.Surface;
+            public override Color ImageMarginGradientMiddle => theme.Surface;
+            public override Color ImageMarginGradientEnd => theme.Surface;
+            public override Color MenuBorder => theme.Border;
+            public override Color MenuItemBorder => theme.ButtonHover;
+            public override Color MenuItemSelected => theme.ButtonHover;
+            public override Color MenuItemSelectedGradientBegin => theme.ButtonHover;
+            public override Color MenuItemSelectedGradientEnd => theme.ButtonHover;
+            public override Color CheckBackground => Color.Transparent;
+            public override Color CheckSelectedBackground => Color.Transparent;
+            public override Color CheckPressedBackground => Color.Transparent;
+            public override Color SeparatorDark => theme.Border;
+            public override Color SeparatorLight => theme.Surface;
         }
     }
 }

@@ -38,6 +38,7 @@ namespace PaloAlto_syslog_visualizer
             this.textBoxSouceAddress = new System.Windows.Forms.TextBox();
             this.buttonPauseStartCapture = new System.Windows.Forms.Button();
             this.buttonTheme = new System.Windows.Forms.Button();
+            this.buttonColumns = new System.Windows.Forms.Button();
             this.panelLogs = new System.Windows.Forms.Panel();
             this.lableSearchTip = new System.Windows.Forms.Label();
             this.panel1 = new System.Windows.Forms.Panel();
@@ -61,6 +62,7 @@ namespace PaloAlto_syslog_visualizer
             this.toolStripStatusSyslog = new System.Windows.Forms.ToolStripStatusLabel();
             this.toolStripStatusBuffer = new System.Windows.Forms.ToolStripStatusLabel();
             this.toolStripStatusTotal = new System.Windows.Forms.ToolStripStatusLabel();
+            this.toolStripStatusResults = new System.Windows.Forms.ToolStripStatusLabel();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridViewLogs)).BeginInit();
             this.panelLogs.SuspendLayout();
             this.panel1.SuspendLayout();
@@ -144,12 +146,22 @@ namespace PaloAlto_syslog_visualizer
             // buttonTheme
             //
             this.buttonTheme.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.buttonTheme.Location = new System.Drawing.Point(1065, 12);
+            this.buttonTheme.Location = new System.Drawing.Point(1151, 12);
             this.buttonTheme.Name = "buttonTheme";
-            this.buttonTheme.Size = new System.Drawing.Size(110, 30);
+            this.buttonTheme.Size = new System.Drawing.Size(32, 30);
             this.buttonTheme.TabIndex = 8;
-            this.buttonTheme.Text = "Dark mode";
+            this.buttonTheme.Tag = "icon";
             this.buttonTheme.Click += new System.EventHandler(this.buttonTheme_Click);
+            //
+            // buttonColumns
+            //
+            this.buttonColumns.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.buttonColumns.Location = new System.Drawing.Point(1053, 12);
+            this.buttonColumns.Name = "buttonColumns";
+            this.buttonColumns.Size = new System.Drawing.Size(90, 30);
+            this.buttonColumns.TabIndex = 9;
+            this.buttonColumns.Text = "Columns ▾";
+            this.buttonColumns.Click += new System.EventHandler(this.buttonColumns_Click);
             // 
             // panelLogs
             // 
@@ -162,6 +174,7 @@ namespace PaloAlto_syslog_visualizer
             this.panelLogs.Controls.Add(this.buttonClean);
             this.panelLogs.Controls.Add(this.buttonPauseStartCapture);
             this.panelLogs.Controls.Add(this.buttonTheme);
+            this.panelLogs.Controls.Add(this.buttonColumns);
             this.panelLogs.Controls.Add(this.dataGridViewLogs);
             this.panelLogs.Location = new System.Drawing.Point(0, 2);
             this.panelLogs.Name = "panelLogs";
@@ -350,7 +363,8 @@ namespace PaloAlto_syslog_visualizer
             this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.toolStripStatusSyslog,
             this.toolStripStatusBuffer,
-            this.toolStripStatusTotal});
+            this.toolStripStatusTotal,
+            this.toolStripStatusResults});
             this.statusStrip1.Location = new System.Drawing.Point(0, 861);
             this.statusStrip1.Name = "statusStrip1";
             this.statusStrip1.Padding = new System.Windows.Forms.Padding(8, 2, 8, 2);
@@ -378,6 +392,11 @@ namespace PaloAlto_syslog_visualizer
             this.toolStripStatusTotal.Name = "toolStripStatusTotal";
             this.toolStripStatusTotal.Size = new System.Drawing.Size(69, 17);
             this.toolStripStatusTotal.Text = "Total logs: 0";
+            //
+            // toolStripStatusResults
+            //
+            this.toolStripStatusResults.Margin = new System.Windows.Forms.Padding(16, 3, 0, 2);
+            this.toolStripStatusResults.Name = "toolStripStatusResults";
             // 
             // FormMain
             // 
@@ -411,6 +430,7 @@ namespace PaloAlto_syslog_visualizer
         private System.Windows.Forms.Label labelSouceAddress;
         private System.Windows.Forms.Button buttonPauseStartCapture;
         private System.Windows.Forms.Button buttonTheme;
+        private System.Windows.Forms.Button buttonColumns;
 
         // called every second by the status refresh thread
         public void SetStatusValues(uint buffer, uint total)
@@ -446,6 +466,7 @@ namespace PaloAlto_syslog_visualizer
         private StatusStrip statusStrip1;
         private ToolStripStatusLabel toolStripStatusBuffer;
         private ToolStripStatusLabel toolStripStatusTotal;
+        private ToolStripStatusLabel toolStripStatusResults;
         private ToolStripStatusLabel toolStripStatusSyslog;
         private Panel panel1;
         private Label labelDestionationAddress;
